@@ -1,10 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../lib/supabase');
+const { authenticate } = require('../middleware/auth');
 
 /**
  * POST /bookings
  * Creates a booking for an event after checking the gender quota.
+ * Requires authentication — user_id is taken from the JWT, not the request body.
  *
  * Flow:
  * 1. Fetch the gender_slots row for the event.
@@ -15,7 +17,6 @@ const supabase = require('../lib/supabase');
  * Expected request body:
  * {
  *   event_id: string (UUID),
- *   user_id: string (UUID),
  *   gender: 'male' | 'female',
  *   name: string,
  *   email: string
@@ -25,10 +26,10 @@ const supabase = require('../lib/supabase');
  * replace with a Supabase database function (RPC) that runs inside a
  * transaction to prevent race conditions on the quota check.
  */
-router.post('/', async (req, res) => {
-  const { event_id, user_id, gender, name, email } = req.body;
+router.post('/', authenticate, async (req, res) => {
+  const { event_id, gender, name, email } = req.body;
+  const user_id = req.user.id;  // taken from verified JWT, not request body
 
-  // Validate required fields
   if (!event_id || !gender || !name || !email) {
     return res.status(400).json({
       error: 'event_id, gender, name, and email are required',
@@ -77,7 +78,6 @@ router.post('/', async (req, res) => {
     .eq('id', slots.id);
 
   if (updateError) {
-    // Booking was inserted but counter failed — log for manual reconciliation
     console.error('Counter update failed for booking:', booking.id, updateError.message);
     return res.status(500).json({
       error: 'Booking created but slot counter could not be updated. Please contact support.',

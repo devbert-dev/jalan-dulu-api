@@ -22,7 +22,7 @@ router.post('/register', async (req, res) => {
     email,
     password,
     email_confirm: true,
-    user_metadata: { full_name: name || '' },
+    user_metadata: { full_name: name || '', role: 'user' },
   });
 
   if (createError) {

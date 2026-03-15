@@ -5,6 +5,7 @@ const cors = require('cors');
 const eventsRouter   = require('./routes/events');
 const bookingsRouter = require('./routes/bookings');
 const authRouter     = require('./routes/auth');
+const adminRouter    = require('./routes/admin');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -19,6 +20,7 @@ app.use(express.json());
 app.use('/auth',     authRouter);
 app.use('/events',   eventsRouter);
 app.use('/bookings', bookingsRouter);
+app.use('/admin',    adminRouter);
 
 // Health check endpoint
 app.get('/', (req, res) => {

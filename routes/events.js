@@ -1,10 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../lib/supabase');
+const { authenticate, authenticateOptional } = require('../middleware/auth');
+const { requireRole } = require('../middleware/requireRole');
 
 /**
  * GET /events
  * Returns all events (summary only — no gender slot details).
+ * Public: no authentication required.
  */
 router.get('/', async (req, res) => {
   const { data, error } = await supabase
@@ -22,18 +25,15 @@ router.get('/', async (req, res) => {
  * Returns a single event joined with its gender_slots row.
  *
  * Access rules:
- * - Public (no query param): only `total_slots` is returned from gender_slots.
- * - Host view (?is_host=true): full gender breakdown is included
+ * - Public (no token / user role): only `total_slots` is returned from gender_slots.
+ * - host or admin (valid JWT with matching role): full gender breakdown is included
  *   (male_slots, female_slots, male_filled, female_filled).
- *
- * NOTE: In production, replace the `is_host` query param check with
- * proper authentication (e.g. JWT verification) so hosts can't be spoofed.
  */
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticateOptional, async (req, res) => {
   const { id } = req.params;
-  const isHost = req.query.is_host === 'true';
+  const role   = req.user?.user_metadata?.role ?? 'user';
+  const isHost = role === 'host' || role === 'admin';
 
-  // Fetch the event and its associated gender_slots in one query
   const { data, error } = await supabase
     .from('events')
     .select(`
@@ -67,6 +67,7 @@ router.get('/:id', async (req, res) => {
 /**
  * POST /events
  * Creates a new event and its corresponding gender_slots row.
+ * Requires authentication with host or admin role.
  *
  * Expected request body:
  * {
@@ -78,10 +79,10 @@ router.get('/:id', async (req, res) => {
  *   female_slots: number
  * }
  */
-router.post('/', async (req, res) => {
+router.post('/', authenticate, requireRole('host', 'admin'), async (req, res) => {
   const { title, description, date, location, male_slots, female_slots } = req.body;
+  const host_id = req.user.id;
 
-  // Validate required fields
   if (!title || !date || male_slots == null || female_slots == null) {
     return res.status(400).json({
       error: 'title, date, male_slots, and female_slots are required',
@@ -90,16 +91,14 @@ router.post('/', async (req, res) => {
 
   const total_slots = male_slots + female_slots;
 
-  // Insert the event row first
   const { data: event, error: eventError } = await supabase
     .from('events')
-    .insert({ title, description, date, location })
+    .insert({ title, description, date, location, host_id })
     .select()
     .single();
 
   if (eventError) return res.status(500).json({ error: eventError.message });
 
-  // Insert the gender_slots row linked to the new event
   const { data: slots, error: slotsError } = await supabase
     .from('gender_slots')
     .insert({
