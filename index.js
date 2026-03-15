@@ -2,8 +2,9 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 
-const eventsRouter = require('./routes/events');
+const eventsRouter   = require('./routes/events');
 const bookingsRouter = require('./routes/bookings');
+const authRouter     = require('./routes/auth');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -15,7 +16,8 @@ app.use(cors());
 app.use(express.json());
 
 // Mount route handlers
-app.use('/events', eventsRouter);
+app.use('/auth',     authRouter);
+app.use('/events',   eventsRouter);
 app.use('/bookings', bookingsRouter);
 
 // Health check endpoint
