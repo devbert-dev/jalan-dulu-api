@@ -11,7 +11,7 @@ const supabase = require('../lib/supabase');
  * immediately without an email verification step.
  */
 router.post('/register', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, name } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required.' });
@@ -22,6 +22,7 @@ router.post('/register', async (req, res) => {
     email,
     password,
     email_confirm: true,
+    user_metadata: { full_name: name || '' },
   });
 
   if (createError) {
