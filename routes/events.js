@@ -21,6 +21,23 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * GET /events/mine
+ * Returns all events created by the authenticated host/admin.
+ * Includes full gender_slots breakdown.
+ */
+router.get('/mine', authenticate, requireRole('host', 'admin'), async (req, res) => {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*, gender_slots(*)')
+    .eq('host_id', req.user.id)
+    .order('created_at', { ascending: false });
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  res.json(data);
+});
+
+/**
  * GET /events/:id
  * Returns a single event joined with its gender_slots row.
  *
@@ -80,7 +97,11 @@ router.get('/:id', authenticateOptional, async (req, res) => {
  * }
  */
 router.post('/', authenticate, requireRole('host', 'admin'), async (req, res) => {
-  const { title, description, date, location, male_slots, female_slots } = req.body;
+  const {
+    title, description, date, time, location,
+    price, category, tags,
+    male_slots, female_slots,
+  } = req.body;
   const host_id = req.user.id;
 
   if (!title || !date || male_slots == null || female_slots == null) {
@@ -89,11 +110,15 @@ router.post('/', authenticate, requireRole('host', 'admin'), async (req, res) =>
     });
   }
 
-  const total_slots = male_slots + female_slots;
+  const total_slots = Number(male_slots) + Number(female_slots);
 
   const { data: event, error: eventError } = await supabase
     .from('events')
-    .insert({ title, description, date, location, host_id })
+    .insert({
+      title, description, date, time, location,
+      price: price ? Number(price) : null,
+      category, tags, host_id,
+    })
     .select()
     .single();
 
@@ -104,8 +129,8 @@ router.post('/', authenticate, requireRole('host', 'admin'), async (req, res) =>
     .insert({
       event_id: event.id,
       total_slots,
-      male_slots,
-      female_slots,
+      male_slots:  Number(male_slots),
+      female_slots: Number(female_slots),
       male_filled: 0,
       female_filled: 0,
     })
