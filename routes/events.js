@@ -142,4 +142,39 @@ router.post('/', authenticate, requireRole('host', 'admin'), async (req, res) =>
   res.status(201).json({ ...event, gender_slots: slots });
 });
 
+/**
+ * DELETE /events/:id
+ * Deletes an event (and its gender_slots via cascade).
+ * Only the host who created the event, or an admin, may delete it.
+ */
+router.delete('/:id', authenticate, requireRole('host', 'admin'), async (req, res) => {
+  const { id } = req.params;
+  const role    = req.user.user_metadata?.role ?? 'user';
+
+  // Verify the event exists and belongs to this user (unless admin)
+  const { data: event, error: fetchError } = await supabase
+    .from('events')
+    .select('id, host_id')
+    .eq('id', id)
+    .single();
+
+  if (fetchError) {
+    const status = fetchError.code === 'PGRST116' ? 404 : 500;
+    return res.status(status).json({ error: 'Event not found.' });
+  }
+
+  if (role !== 'admin' && event.host_id !== req.user.id) {
+    return res.status(403).json({ error: 'You can only delete your own events.' });
+  }
+
+  const { error: deleteError } = await supabase
+    .from('events')
+    .delete()
+    .eq('id', id);
+
+  if (deleteError) return res.status(500).json({ error: deleteError.message });
+
+  res.status(200).json({ message: 'Event deleted.' });
+});
+
 module.exports = router;
